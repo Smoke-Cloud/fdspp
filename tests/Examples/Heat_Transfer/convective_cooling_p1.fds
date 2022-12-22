@@ -1,0 +1,34 @@
+&HEAD CHID='convective_cooling_p1', TITLE='Heat Transfer through solid Slab' /
+
+&MESH IJK=3,3,3, XB=-0.15,0.15,-0.15,0.15,0.0,0.3 /
+
+&TIME T_END=1800., WALL_INCREMENT=1, DT=10. /
+
+&MISC TMPA=0., ASSUMED_GAS_TEMPERATURE=0., SOLID_PHASE_ONLY=.TRUE. /
+
+&SURF ID        = 'SLAB'
+      MATL_ID   = 'SLAB_A'
+      THICKNESS = 1.
+      TMP_INNER = 1000.
+      CELL_SIZE_FACTOR = 3.2
+      STRETCH_FACTOR = 1.
+      HEAT_TRANSFER_COEFFICIENT   = 1.
+      BACKING   = 'INSULATED' /
+
+&MATL ID            = 'SLAB_A'
+      CONDUCTIVITY  = 1.
+      EMISSIVITY    = 0.
+      SPECIFIC_HEAT = 0.001
+      DENSITY       = 1000. /
+
+&VENT XB = -0.05,0.05,-0.05,0.05,0.0,0.0, SURF_ID='SLAB' /
+
+&VENT MB='XMIN', SURF_ID='OPEN' /
+&VENT MB='XMAX', SURF_ID='OPEN' /
+&VENT MB='YMIN', SURF_ID='OPEN' /
+&VENT MB='YMAX', SURF_ID='OPEN' /
+&VENT MB='ZMAX', SURF_ID='OPEN' /
+
+&DEVC XYZ = 0.0,0.0,0.0, IOR = 3, ID='Back',  QUANTITY = 'BACK WALL TEMPERATURE', TIME_AVERAGED=.FALSE. /
+
+&TAIL /

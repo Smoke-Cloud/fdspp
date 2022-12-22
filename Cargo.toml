@@ -1,0 +1,9 @@
+[package]
+authors = ["Jake O'Shannessy <joshannessy@smokecloud.com>"]
+edition = "2021"
+name = "fdspp"
+version = "0.1.0"
+
+[dependencies]
+clap = { version = "4.0.30", features = ["cargo"] }
+namelist = {git = "https://github.com/JakeOShannessy/namelist-rs.git", branch = "new-parser"}

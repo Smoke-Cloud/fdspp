@@ -10,7 +10,7 @@ mod integration {
                 for example in examples {
                     let example_path = example.unwrap().path();
                     if example_path.is_file() {
-                        eprintln!("{}",example_path.display());
+                        eprintln!("{}", example_path.display());
                         let input = std::fs::read_to_string(&example_path).unwrap();
                         let parser = namelist::NmlParser::new(std::io::Cursor::new(&input));
                         let nmls: Vec<_> = parser.collect();

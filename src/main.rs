@@ -1,6 +1,7 @@
 use std::io::{Read, Write};
 
 use clap::{crate_name, crate_version, value_parser, Arg, Command};
+use namelist::tokenizer::Token;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let matches = Command::new(crate_name!())
@@ -23,8 +24,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         )
         .arg(
             Arg::new("OUTPUT-PATH")
-                // .long("output")
-                // .short('o')
                 .required(true)
                 .num_args(1)
                 .help("Path to the input file or '-' for stdin"),
@@ -57,7 +56,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
     let parser = namelist::NmlParser::new(std::io::Cursor::new(input));
     let nmls: Vec<_> = parser.collect();
-    for nml in nmls {
+    let mut i = 0;
+    for mut nml in nmls {
+        if nml.tokens().get(1).map(|x| &x.token) == Some(&Token::Identifier("MESH".to_string())) {
+            nml.append_token(Token::Identifier("MPI_PROCESS".to_string()));
+            nml.append_token(Token::Equals);
+            nml.append_token(Token::Number(format!("{i}")));
+            i += 1;
+        }
         output_handle.write_all(nml.to_string().as_bytes())?;
     }
 

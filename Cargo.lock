@@ -16,9 +16,9 @@ checksum = "a20104e2335ce8a659d6dd92a51a767a0c062599c73b343fd152cb401e828c3d"
 
 [[package]]
 name = "clap"
-version = "4.0.30"
+version = "4.0.32"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "656ad1e55e23d287773f7d8192c300dc715c3eeded93b3da651d11c42cfd74d2"
+checksum = "a7db700bc935f9e43e88d00b0850dae18a63773cfbec6d8e070fccf7fef89a39"
 dependencies = [
  "bitflags",
  "clap_lex",
@@ -111,8 +111,8 @@ checksum = "f051f77a7c8e6957c0696eac88f26b0117e54f52d3fc682ab19397a8812846a4"
 
 [[package]]
 name = "namelist"
-version = "0.2.2"
-source = "git+https://github.com/JakeOShannessy/namelist-rs.git?branch=new-parser#7bfbb5a443f3bee9dcb74c6d4562c6e108f1330c"
+version = "0.2.3"
+source = "git+https://github.com/JakeOShannessy/namelist-rs.git?branch=new-parser#401a6d4e9eead4bae00e9fefdcfcfec385393fff"
 dependencies = [
  "utf-8",
 ]

@@ -112,7 +112,7 @@ checksum = "f051f77a7c8e6957c0696eac88f26b0117e54f52d3fc682ab19397a8812846a4"
 [[package]]
 name = "namelist"
 version = "0.2.3"
-source = "git+https://github.com/JakeOShannessy/namelist-rs.git?branch=new-parser#401a6d4e9eead4bae00e9fefdcfcfec385393fff"
+source = "git+https://github.com/JakeOShannessy/namelist-rs.git?branch=new-parser#91afa66781de086679d0e0b0961621dd5666233d"
 dependencies = [
  "utf-8",
 ]

@@ -323,10 +323,10 @@ fn parse_namelist(nml: &namelist::Namelist) -> Option<ParsedNamelist> {
                 .as_ref()
                 .or_else(|| next_non_ws(&mut tokens))
             {
-                if &token.token == &Token::RightSlash {
+                if token.token == Token::RightSlash {
                     break;
                 }
-                if &token.token == &Token::Equals {
+                if token.token == Token::Equals {
                     token_buf.push(token.clone());
                     if let Some(t) = value_tokens.pop() {
                         token_buf.push(t);

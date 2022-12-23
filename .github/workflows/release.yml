@@ -1,0 +1,54 @@
+on: [push, pull_request]
+# on:
+#   push:
+#     tags:
+#       - "v*"
+
+name: Release
+
+jobs:
+  build:
+    name: Build RPM
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        container:
+          # - "fedora:36"
+          # - "rockylinux:9"
+          - "rockylinux:8"
+    container: ${{ matrix.container }}
+    steps:
+      - name: Install git
+        run: yum install -y git
+      - uses: actions/checkout@v3
+      - name: install prerequisites
+        run: |
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs > rustup.sh
+          sh rustup.sh -y
+          yum install -y git gcc openssl-devel dbus-devel
+          yum install -y rpmdevtools systemd systemd-rpm-macros
+      - name: Create archive
+        run: |
+          spec_path=fdspp.spec
+          version=$(rpmspec  -q --qf '%{VERSION}' ${spec_path})
+          mkdir -p rpmbuild/{BUILD,BUILDROOT,RPMS,SOURCES,SPECS,SRPMS}
+          cp ${spec_path} rpmbuild/SPECS/
+          git config --global --add safe.directory /__w/fdspp/fdspp
+          git archive --output=rpmbuild/SOURCES/${src_name}-${version}.tar.gz --prefix=${src_name}-${version}/ HEAD
+        env:
+          src_name: fdspp
+      - name: Build package
+        run: |
+          source $HOME/.cargo/env
+          spectool -g rpmbuild/SPECS/fdspp.spec -C rpmbuild/SOURCES --all
+          rpmbuild -ba rpmbuild/SPECS/fdspp.spec --define "_topdir $(pwd)/rpmbuild"
+        env:
+          QA_RPATHS: 7
+      - name: Copy files
+        run: |
+          spec_path=fdspp.spec
+          version=$(rpmspec  -q --qf '%{VERSION}' ${spec_path})
+          release=$(rpmspec  -q --qf '%{RELEASE}' ${spec_path})
+          arch=$(rpmspec  -q --qf '%{ARCH}' ${spec_path})
+          mkdir -p dist
+          cp rpmbuild/RPMS/${arch}/fdspp-${version}-${release}.${arch}.rpm dist

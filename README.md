@@ -1,8 +1,8 @@
 # FDS Pre-Processor
 
-![build checks](https://github.com/Smoke-Cloud/fdspp/actions/workflows/checks.yaml/badge.svg)
+[![Checks](https://github.com/Smoke-Cloud/fdspp/actions/workflows/checks.yaml/badge.svg)](https://github.com/Smoke-Cloud/fdspp/actions/workflows/checks.yaml)
 
-`fdspp` is a pre-processor for [FDS](https://github.com/firemodels/fds)
+`fdspp` is a pre-processor for [FDS](https://github.com/firemodels/fds).
 
 One of the primary purposes is to automatically distribute meshes to MPI process
 depending on their size. For example, do distribute meshes amongst 4 MPI process

@@ -18,6 +18,8 @@ jobs:
             ~/.cargo/git/db/
             ./target/
           key: deps4-${{ runner.os }}-check-${{ hashFiles('Cargo.lock') }}
+      - name: Install native pre-requisites
+        run: dnf install gcc -y
       - uses: actions-rs/toolchain@v1
         with:
           profile: minimal
@@ -42,6 +44,8 @@ jobs:
             ~/.cargo/git/db/
             ./target/
           key: deps4-${{ runner.os }}-test-${{ hashFiles('Cargo.lock') }}
+      - name: Install native pre-requisites
+        run: dnf install gcc -y
       - uses: actions-rs/toolchain@v1
         with:
           profile: minimal
@@ -66,6 +70,8 @@ jobs:
             ~/.cargo/git/db/
             ./target/
           key: deps4-${{ runner.os }}-fmt-${{ hashFiles('Cargo.lock') }}
+      - name: Install native pre-requisites
+        run: dnf install gcc -y
       - uses: actions-rs/toolchain@v1
         with:
           profile: minimal
@@ -92,6 +98,8 @@ jobs:
             ~/.cargo/git/db/
             ./target/
           key: deps4-${{ runner.os }}-clippy-${{ hashFiles('Cargo.lock') }}
+      - name: Install native pre-requisites
+        run: dnf install gcc -y
       - uses: actions-rs/toolchain@v1
         with:
           profile: minimal

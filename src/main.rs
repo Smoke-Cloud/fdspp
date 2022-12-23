@@ -75,7 +75,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
         }
     }
-    println!("total_cells: {}", meshes.values().sum::<usize>());
     let mut meshes: Vec<_> = meshes.into_iter().collect();
     meshes.sort_by(|a, b| a.1.cmp(&b.1));
     meshes.reverse();
@@ -95,10 +94,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
     let mut mesh_process = HashMap::new();
     for (i, bucket) in buckets.iter().enumerate() {
-        println!(
-            "{i} {}: {bucket:?}",
-            bucket.iter().map(|(_, n)| n).sum::<usize>()
-        );
         for (mesh_num, _) in bucket.iter() {
             mesh_process.insert(mesh_num, i);
         }
@@ -125,7 +120,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     for (old_location, (_, mut nml)) in old_mesh_locations.iter().zip(new_meshes.into_iter()) {
         std::mem::swap(&mut nml, nmls.get_mut(*old_location).unwrap());
     }
-    for (i, nml) in nmls.into_iter().enumerate() {
+    for nml in nmls.into_iter() {
         output_handle.write_all(nml.to_string().as_bytes())?;
     }
 

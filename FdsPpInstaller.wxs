@@ -1,0 +1,38 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<?define ProductVersion = "0.2.3"?>
+<?define ProductName = "FdsPp"?>
+<?define ProductUpgradeCode = "a1323b60-bc05-4fb4-85dc-def26eea99c1"?>
+
+<Wix xmlns='http://schemas.microsoft.com/wix/2006/wi'>
+    <Product Name='FdsPp $(var.ProductVersion)' Id='*' Codepage="utf-8" UpgradeCode="$(var.ProductUpgradeCode)" Language='1033' Version='$(var.ProductVersion)' Manufacturer='Smoke Cloud'>
+        <Package Id='*' InstallScope='perUser' InstallPrivileges='limited' Keywords='Installer' Description="FdsPp Installer" Comments='Installs FdsPp.' Manufacturer='Smoke Cloud' InstallerVersion='300' Platform='x64' Languages='1033' Compressed='yes' />
+        <Media Id='1' Cabinet='media1.cab' EmbedCab='yes' />
+        <Property Id='DiskPrompt' Value="FdsPp Installer" />
+        <Upgrade Id="$(var.ProductUpgradeCode)">
+            <UpgradeVersion Minimum="$(var.ProductVersion)" OnlyDetect="yes" Property="NEWERVERSIONDETECTED"/>
+            <UpgradeVersion Minimum="0.0.0" Maximum="$(var.ProductVersion)" IncludeMinimum="yes" IncludeMaximum="no" Property="OLDERVERSIONBEINGUPGRADED"/>
+        </Upgrade>
+        <Condition Message="A newer version of this software is already installed.">NOT NEWERVERSIONDETECTED</Condition>
+        <Property Id="ALLUSERS" Secure="yes" Value="2" />
+        <Property Id="MSIINSTALLPERUSER" Secure="yes" Value="1" />
+        <Directory Id='TARGETDIR' Name='SourceDir'>
+            <Directory Id='ProgramFiles64Folder' Name='PFiles'>
+                <Directory Id='SmokeCloud' Name='Smoke Cloud'>
+                    <Directory Id='INSTALLDIR' Name='fdspp'>
+                        <Component Id='FdsPpComponent' Guid='b8a2f770-8e69-4d9d-8d8e-61ef8dea9c63' Win64="yes">
+                            <Environment Id="WP_PATH" Name="PATH" Value="[INSTALLDIR]" Permanent="no" Part="last" Action="set" System="no" />
+                            <File Id='WPExe' Name='fdspp.exe' Source='target/release/fdspp.exe' KeyPath='yes'>
+                            </File>
+                        </Component>
+                    </Directory>
+                </Directory>
+            </Directory>
+        </Directory>
+        <InstallExecuteSequence>
+            <RemoveExistingProducts After="InstallValidate"/>
+        </InstallExecuteSequence>
+        <Feature Id='fdspp' Level='1'>
+            <ComponentRef Id='FdsPpComponent' />
+        </Feature>
+    </Product>
+</Wix>

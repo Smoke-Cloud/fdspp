@@ -25,7 +25,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .arg(
             Arg::new("N-PROCESSES")
                 .long("n-mpi")
-                .value_parser(value_parser!(u32))
+                .required(false)
+                .value_parser(value_parser!(usize))
                 .num_args(1)
                 .help("Number of MPI processes to use"),
         )
@@ -63,6 +64,17 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
     let parser = namelist::NmlParser::new(std::io::Cursor::new(input));
     let mut nmls: Vec<_> = parser.collect();
+    if let Some(n_mpi) = matches.get_one::<usize>("N-PROCESSES").copied() {
+        allocate_mpi_processes(&mut nmls, n_mpi);
+    }
+    for nml in nmls.into_iter() {
+        output_handle.write_all(nml.to_string().as_bytes())?;
+    }
+
+    Ok(())
+}
+
+fn allocate_mpi_processes(nmls: &mut [Namelist], n_mpi: usize) {
     let mut meshes = HashMap::new();
     {
         // Count cells
@@ -78,7 +90,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut meshes: Vec<_> = meshes.into_iter().collect();
     meshes.sort_by(|a, b| a.1.cmp(&b.1));
     meshes.reverse();
-    let n_mpi = 4;
     let mut buckets: Vec<Vec<(usize, usize)>> = vec![vec![]; n_mpi];
     for mesh in &meshes {
         // get the minimum bucket
@@ -98,6 +109,20 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             mesh_process.insert(mesh_num, i);
         }
     }
+    eprintln!("MPI Mesh Allocation");
+    for (i, bucket) in buckets.iter().enumerate() {
+        let total_cells = bucket.iter().map(|(_, n)| n).sum::<usize>();
+        let cells: Vec<_> = bucket.iter().map(|(_, n)| n).collect();
+        eprintln!("  MPI_PROCESS {i}: TOTAL: {total_cells} {cells:?}");
+    }
+    let process_cells: Vec<usize> = buckets
+        .iter()
+        .map(|buckets| buckets.iter().map(|(_, n)| n).sum::<usize>())
+        .collect();
+    let min_bucket = *process_cells.iter().min().unwrap() as f64;
+    let max_bucket = *process_cells.iter().max().unwrap() as f64;
+    let variation = ((max_bucket - min_bucket) / 2.0) / ((max_bucket + min_bucket) / 2.0) * 100.0;
+    eprintln!("MPI Cell Count Variation: +/- {:.2}", variation);
     let mut old_mesh_locations: Vec<usize> = meshes.iter().map(|(i, _)| *i).collect();
     old_mesh_locations.sort();
     for (i, nml) in nmls.iter_mut().enumerate() {
@@ -120,11 +145,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     for (old_location, (_, mut nml)) in old_mesh_locations.iter().zip(new_meshes.into_iter()) {
         std::mem::swap(&mut nml, nmls.get_mut(*old_location).unwrap());
     }
-    for nml in nmls.into_iter() {
-        output_handle.write_all(nml.to_string().as_bytes())?;
-    }
-
-    Ok(())
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]

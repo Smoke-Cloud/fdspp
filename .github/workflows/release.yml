@@ -1,8 +1,7 @@
-on: [push, pull_request]
-# on:
-#   push:
-#     tags:
-#       - "v*"
+on:
+  push:
+    tags:
+      - "v*"
 
 name: Release
 

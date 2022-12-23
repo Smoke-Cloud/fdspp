@@ -7,7 +7,7 @@ on: [push, pull_request]
 name: Release
 
 jobs:
-  build:
+  build-rpm:
     name: Build RPM
     runs-on: ubuntu-latest
     strategy:
@@ -25,7 +25,7 @@ jobs:
         run: |
           curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs > rustup.sh
           sh rustup.sh -y
-          yum install -y git gcc openssl-devel dbus-devel
+          yum install -y git gcc
           yum install -y rpmdevtools systemd systemd-rpm-macros
       - name: Create archive
         run: |
@@ -50,5 +50,31 @@ jobs:
           version=$(rpmspec  -q --qf '%{VERSION}' ${spec_path})
           release=$(rpmspec  -q --qf '%{RELEASE}' ${spec_path})
           arch=$(rpmspec  -q --qf '%{ARCH}' ${spec_path})
+          les rpmbuild/RPMS/${arch}
           mkdir -p dist
           cp rpmbuild/RPMS/${arch}/fdspp-${version}-${release}.${arch}.rpm dist
+      - uses: actions/upload-artifact@v3
+        with:
+          name: fdspp-rpm
+          path: |
+            dist/*.rpm
+
+  build-wix:
+    name: Build MSI
+    runs-on: windows-latest
+    steps:
+      - name: Build Installer
+        shell: bash
+        env:
+          WIX_PATH_CANDLE: "C:/Program Files (x86)/WiX Toolset v3.11/bin/candle.exe"
+          WIX_PATH_LIGHT: "C:/Program Files (x86)/WiX Toolset v3.11/bin/light.exe"
+        run: |
+          mkdir wixout
+          "$WIX_PATH_CANDLE" FdsPpInstaller.wxs -o wixout/
+          "$WIX_PATH_LIGHT" wixout/*.wixobj -o FdsPpInstaller.msi
+      - uses: actions/upload-artifact@v3
+        with:
+          name: fdspp-msi
+          path: |
+            dist/*.msi
+

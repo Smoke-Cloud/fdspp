@@ -1,12 +1,12 @@
 use clap::{crate_name, crate_version, value_parser, Arg, ArgMatches, Command};
 use namelist::{
-    tokenizer::{LocatedToken, Span, Token, TokenizerError},
-    Namelist,
+    tokenizer::{NmlParseError, Span, Token, TokenizerError},
+    Namelist, ParsedNamelist,
 };
 use std::{
     collections::HashMap,
     io::{Read, Write},
-    slice::Iter,
+    num::ParseIntError,
 };
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -25,7 +25,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             Arg::new("N-PROCESSES")
                 .long("n-mpi")
                 .required(false)
-                .value_parser(value_parser!(usize))
+                .value_parser(value_parser!(u64).range(1..))
                 .num_args(1)
                 .help("Number of MPI processes to use"),
         )
@@ -82,7 +82,7 @@ fn run(
 ) -> Result<(), FdsParseError> {
     let mut fds_file = FdsFile::from_reader(input_handle)?;
     // If the number of MPI processes has been nominated, reallocate meshes.
-    if let Some(n_mpi) = matches.get_one::<usize>("N-PROCESSES").copied() {
+    if let Some(n_mpi) = matches.get_one::<u64>("N-PROCESSES").copied() {
         fds_file.allocate_mpi_processes(n_mpi)?;
     }
     fds_file
@@ -94,7 +94,8 @@ fn run(
 #[derive(Debug)]
 pub enum FdsParseError {
     Tokenize(TokenizerError),
-    Parse(Option<Span>, String),
+    NmlParse(NmlParseError),
+    Parse(Option<Span>, Box<dyn std::error::Error>),
     Io(std::io::Error),
 }
 
@@ -102,6 +103,7 @@ impl FdsParseError {
     pub fn span(&self) -> Option<Span> {
         match self {
             Self::Tokenize(err) => Some(err.span()),
+            Self::NmlParse(err) => err.span(),
             Self::Parse(span, _) => *span,
             Self::Io(_) => None,
         }
@@ -112,6 +114,9 @@ impl std::fmt::Display for FdsParseError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Tokenize(err) => {
+                write!(f, "{err}")
+            }
+            Self::NmlParse(err) => {
                 write!(f, "{err}")
             }
             Self::Parse(_, err) => {
@@ -128,6 +133,7 @@ impl std::error::Error for FdsParseError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
             Self::Tokenize(err) => Some(err),
+            Self::NmlParse(err) => Some(err),
             Self::Parse(_, _) => None,
             Self::Io(err) => Some(err),
         }
@@ -167,19 +173,19 @@ impl FdsFile {
     }
 
     /// Count the number of cells in the model.
-    pub fn n_cells(&self) -> Option<usize> {
+    pub fn n_cells(&self) -> Result<usize, FdsParseError> {
         let mut n = 0;
         for nml in self.nmls.iter() {
             if nml.tokens().get(1).map(|x| &x.token) == Some(&Token::Identifier("MESH".to_string()))
             {
-                let pnml = parse_namelist(nml).unwrap();
-                n += count_mesh_cells(&pnml).unwrap();
+                let pnml = ParsedNamelist::from_namelist(nml).map_err(FdsParseError::NmlParse)?;
+                n += count_mesh_cells(&pnml)?;
             }
         }
-        Some(n)
+        Ok(n)
     }
 
-    pub fn allocate_mpi_processes(&mut self, n_mpi: usize) -> Result<(), FdsParseError> {
+    pub fn allocate_mpi_processes(&mut self, n_mpi: u64) -> Result<(), FdsParseError> {
         let nmls = &mut self.nmls;
         let mut meshes = HashMap::new();
         {
@@ -188,7 +194,8 @@ impl FdsFile {
                 if nml.tokens().get(1).map(|x| &x.token)
                     == Some(&Token::Identifier("MESH".to_string()))
                 {
-                    let pnml = parse_namelist(nml).unwrap();
+                    let pnml =
+                        ParsedNamelist::from_namelist(nml).map_err(FdsParseError::NmlParse)?;
                     let n_cells = count_mesh_cells(&pnml)?;
                     meshes.insert(i, n_cells);
                 }
@@ -197,7 +204,7 @@ impl FdsFile {
         let mut meshes: Vec<_> = meshes.into_iter().collect();
         meshes.sort_by(|a, b| a.1.cmp(&b.1));
         meshes.reverse();
-        let mut buckets: Vec<Vec<(usize, usize)>> = vec![vec![]; n_mpi];
+        let mut buckets: Vec<Vec<(usize, usize)>> = vec![vec![]; n_mpi as usize];
         for mesh in &meshes {
             // get the minimum bucket
             let min_bucket = buckets
@@ -257,126 +264,26 @@ impl FdsFile {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct ParsedNamelist {
-    pub group: String,
-    pub span: Option<Span>,
-    pub parameters: HashMap<String, ParameterValues>,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct ParameterValues {
-    pub span: Option<Span>,
-    pub dimensions: Vec<LocatedToken>,
-    pub values: Vec<LocatedToken>,
-}
-
-fn next_non_ws<'a>(tokens: &'a mut Iter<LocatedToken>) -> Option<&'a LocatedToken> {
-    loop {
-        let token = tokens.next()?;
-        match token.token {
-            Token::Whitespace(_) | Token::Comma => {
-                continue;
-            }
-            _ => return Some(token),
-        }
-    }
-}
-
-fn parse_namelist(nml: &namelist::Namelist) -> Option<ParsedNamelist> {
-    let mut tokens = nml.tokens().iter();
-    if tokens.next()?.token != Token::Ampersand {
-        return None;
-    }
-
-    let (group, group_span) = {
-        let gn = tokens.next()?;
-        if let Token::Identifier(s) = &gn.token {
-            (s.to_string(), gn.span())
-        } else {
-            return None;
-        }
-    };
-    let mut parameters: HashMap<String, ParameterValues> = Default::default();
-    let mut token_buf: Vec<LocatedToken> = vec![];
-    while let Some(pn) = token_buf
-        .pop()
-        .or_else(|| next_non_ws(&mut tokens).cloned())
-    {
-        // Take parameter name
-        let parameter_name = pn.clone();
-        if parameter_name.token == Token::RightSlash {
-            break;
-        }
-        if let Token::Identifier(name) = &parameter_name.token {
-            {
-                let b = token_buf.pop();
-                let token = b.as_ref().or_else(|| next_non_ws(&mut tokens));
-                if let Some(Token::Equals) = token.map(|lt| &lt.token) {
-                } else {
-                    panic!("no equals: {token:?}");
-                };
-            }
-            let mut value_tokens: Vec<LocatedToken> = vec![];
-            while let Some(token) = token_buf
-                .pop()
-                .as_ref()
-                .or_else(|| next_non_ws(&mut tokens))
-            {
-                if token.token == Token::RightSlash {
-                    break;
-                }
-                if token.token == Token::Equals {
-                    token_buf.push(token.clone());
-                    if let Some(t) = value_tokens.pop() {
-                        token_buf.push(t);
-                    }
-                    break;
-                }
-                value_tokens.push(token.clone());
-            }
-            parameters.insert(
-                name.to_string(),
-                ParameterValues {
-                    span: pn.span,
-                    dimensions: vec![],
-                    values: value_tokens,
-                },
-            );
-            // loop until we hit equals or right slash
-            continue;
-        } else {
-            panic!("invalid parameter name {:?}", parameter_name);
-        }
-    }
-    Some(ParsedNamelist {
-        group,
-        span: group_span,
-        parameters,
-    })
-}
-
 fn count_mesh_cells(pnml: &ParsedNamelist) -> Result<usize, FdsParseError> {
     let ijk = pnml.parameters.get("IJK").ok_or(FdsParseError::Parse(
         pnml.span,
-        "no IJK parameter for mesh".to_string(),
+        "no IJK parameter for mesh".into(),
     ))?;
     let values: Vec<usize> = ijk
         .values
         .iter()
         .map(|v| match v.token {
-            Token::Number(ref s) => Ok(s.parse().unwrap()),
+            Token::Number(ref s) => Ok(s
+                .parse()
+                .map_err(|err: ParseIntError| FdsParseError::Parse(v.span(), err.into()))?),
             _ => Err(FdsParseError::Parse(
                 v.span(),
-                "ERROR: invalid token for IJK".to_string(),
+                "ERROR: invalid token for IJK".into(),
             )),
         })
         .collect::<Result<Vec<usize>, _>>()?;
     let ijk: [usize; 3] = values.try_into().map_err(|_| {
-        FdsParseError::Parse(
-            None, // v.span(),
-            "incorrect number of IJK parameters".to_string(),
-        )
+        FdsParseError::Parse(pnml.span, "incorrect number of IJK parameters".into())
     })?;
     Ok(ijk[0] * ijk[1] * ijk[2])
 }

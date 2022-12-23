@@ -5,5 +5,5 @@ name = "fdspp"
 version = "0.1.2"
 
 [dependencies]
-clap = { version = "4.0.30", features = ["cargo"] }
-namelist = {git = "https://github.com/JakeOShannessy/namelist-rs.git", branch = "new-parser"}
+clap = { version = "4", features = ["cargo"] }
+namelist = {git = "https://github.com/Smoke-Cloud/namelist-rs.git", branch = "new-parser"}

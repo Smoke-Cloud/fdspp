@@ -63,6 +63,8 @@ jobs:
     name: Build MSI
     runs-on: windows-latest
     steps:
+      - name: Checkout
+        uses: actions/checkout@v2
       - name: Build Installer
         shell: bash
         env:

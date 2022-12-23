@@ -1,5 +1,24 @@
 #[cfg(test)]
 mod integration {
+    use namelist::{tokenizer::Token, Namelist, ParsedNamelist};
+
+    #[test]
+    fn test_file_e() {
+        let input = std::fs::read_to_string("tests/TestE.fds").expect("test parse failed");
+        let parser = namelist::NmlParser::new(std::io::Cursor::new(&input));
+        let nmls: Vec<_> = parser.collect();
+        let mut new = String::new();
+        for nml in nmls {
+            if let Ok(Namelist::Actual { ref tokens }) = nml {
+                if tokens.get(1).map(|t| &t.token) == Some(&Token::Identifier("MESH".to_string())) {
+                    let _pnml = ParsedNamelist::from_namelist(nml.as_ref().unwrap()).unwrap();
+                }
+            }
+            new.push_str(&nml.expect("test parse failed").to_string());
+        }
+        assert_eq!(input, new);
+    }
+
     #[test]
     fn parse_file_examples() {
         let example_dirs = std::fs::read_dir("tests/Examples").expect("test parse failed");

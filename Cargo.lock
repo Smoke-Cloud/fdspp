@@ -112,7 +112,7 @@ checksum = "f051f77a7c8e6957c0696eac88f26b0117e54f52d3fc682ab19397a8812846a4"
 [[package]]
 name = "namelist"
 version = "0.2.3"
-source = "git+https://github.com/Smoke-Cloud/namelist-rs.git?branch=new-parser#398d2731c1309b6f604ceb6aa49d66b45cef7937"
+source = "git+https://github.com/Smoke-Cloud/namelist-rs.git?branch=new-parser#3c1b3cf3ab34c035949fa3e1e8bbd7b8d4793c1e"
 dependencies = [
  "utf-8",
 ]

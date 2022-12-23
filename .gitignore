@@ -2,3 +2,4 @@ target/
 *.msi
 *.wixobj
 *.wixpdb
+rpmbuild/

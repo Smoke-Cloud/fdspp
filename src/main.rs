@@ -265,10 +265,10 @@ impl FdsFile {
 }
 
 fn count_mesh_cells(pnml: &ParsedNamelist) -> Result<usize, FdsParseError> {
-    let ijk = pnml.parameters.get("IJK").ok_or(FdsParseError::Parse(
-        pnml.span,
-        "no IJK parameter for mesh".into(),
-    ))?;
+    let ijk = pnml
+        .parameters
+        .get("IJK")
+        .ok_or_else(|| FdsParseError::Parse(pnml.span, "no IJK parameter for mesh".into()))?;
     let values: Vec<usize> = ijk
         .values
         .iter()

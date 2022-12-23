@@ -22,7 +22,7 @@ cargo build --release
 
 %install
 rm -rf $RPM_BUILD_ROOT
-install -D target/release/fdspp $RPM_BUILD_ROOT/%{_bindir}
+install -D target/release/fdspp $RPM_BUILD_ROOT/%{_bindir}/fdspp
 
 %files
 %{_bindir}/fdspp

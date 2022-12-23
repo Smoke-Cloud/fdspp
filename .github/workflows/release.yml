@@ -70,6 +70,7 @@ jobs:
           WIX_PATH_LIGHT: "C:/Program Files (x86)/WiX Toolset v3.11/bin/light.exe"
         run: |
           mkdir wixout
+          ls
           "$WIX_PATH_CANDLE" FdsPpInstaller.wxs -o wixout/
           "$WIX_PATH_LIGHT" wixout/*.wixobj -o FdsPpInstaller.msi
       - uses: actions/upload-artifact@v3

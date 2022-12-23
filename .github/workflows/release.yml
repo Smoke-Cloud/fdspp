@@ -50,7 +50,7 @@ jobs:
           version=$(rpmspec  -q --qf '%{VERSION}' ${spec_path})
           release=$(rpmspec  -q --qf '%{RELEASE}' ${spec_path})
           arch=$(rpmspec  -q --qf '%{ARCH}' ${spec_path})
-          les rpmbuild/RPMS/${arch}
+          ls rpmbuild/RPMS/${arch}
           mkdir -p dist
           cp rpmbuild/RPMS/${arch}/fdspp-${version}-${release}.${arch}.rpm dist
       - uses: actions/upload-artifact@v3
@@ -70,6 +70,7 @@ jobs:
           WIX_PATH_LIGHT: "C:/Program Files (x86)/WiX Toolset v3.11/bin/light.exe"
         run: |
           mkdir wixout
+          ls
           "$WIX_PATH_CANDLE" FdsPpInstaller.wxs -o wixout/
           "$WIX_PATH_LIGHT" wixout/*.wixobj -o FdsPpInstaller.msi
       - uses: actions/upload-artifact@v3

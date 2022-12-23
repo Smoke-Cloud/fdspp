@@ -12,8 +12,8 @@ jobs:
     strategy:
       matrix:
         container:
-          # - "fedora:36"
-          # - "rockylinux:9"
+          - "fedora:37"
+          - "rockylinux:9"
           - "rockylinux:8"
     container: ${{ matrix.container }}
     steps:

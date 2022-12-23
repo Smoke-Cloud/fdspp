@@ -83,6 +83,7 @@ jobs:
           ls
           "$WIX_PATH_CANDLE" FdsPpInstaller.wxs -o wixout/
           "$WIX_PATH_LIGHT" wixout/*.wixobj -o FdsPpInstaller.msi
+          cp FdsPpInstaller.msi dist
       - uses: actions/upload-artifact@v3
         with:
           name: fdspp-msi

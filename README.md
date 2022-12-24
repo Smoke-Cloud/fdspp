@@ -18,3 +18,11 @@ MPI Mesh Allocation
 MPI Cell Count Variation: +/- 13.38
 $ mpiexec -np 4 fds new-input.fds # Run the modified input file
 ```
+
+## Installation
+
+RPM binaries for Linux and MSI for Windows are provided on the releases page. Alternatively, `fdspp` can be built from scratch using [cargo](https://rustup.rs/). Checkout the repository and install as follows:
+
+```sh
+cargo install --locked --path .
+```

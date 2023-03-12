@@ -1,4 +1,4 @@
-set windows-shell := ["pwsh.exe", "-NoLogo", "-Command"]
+set windows-shell := ["powershell.exe", "-NoLogo", "-Command"]
 
 alias b := build
 
@@ -17,8 +17,7 @@ build:
 package:
     cargo build --release
     mkdir -Force dist
-    candle FdsPpInstaller.wxs
-    light FdsPpInstaller.wixobj
+    wix build FdsPpInstaller.wxs
 
 # Clean the ./dist folder
 clean-dist:

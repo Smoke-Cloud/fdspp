@@ -2,7 +2,7 @@
 # yaml-language-server: $schema=https://aka.ms/winget-manifest.defaultLocale.1.4.0.schema.json
 
 PackageIdentifier: SmokeCloud.FdsPp
-PackageVersion: 0.2.5
+PackageVersion: 0.2.6
 PackageLocale: en-US
 Publisher: Smoke Cloud
 PackageName: FdsPp

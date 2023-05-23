@@ -2,9 +2,9 @@
 # yaml-language-server: $schema=https://aka.ms/winget-manifest.installer.1.4.0.schema.json
 
 PackageIdentifier: SmokeCloud.FdsPp
-PackageVersion: 0.2.5
+PackageVersion: 0.2.6
 Installers:
-- InstallerUrl: https://github.com/Smoke-Cloud/fdspp/releases/download/v0.2.5/FdsPpInstaller.msi
+- InstallerUrl: https://github.com/Smoke-Cloud/fdspp/releases/download/v0.2.6/FdsPpInstaller.msi
   InstallerLocale: en-US
   Architecture: x64
   InstallerType: wix

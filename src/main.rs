@@ -244,6 +244,7 @@ impl FdsFile {
             if nml.tokens().get(1).map(|x| &x.token) == Some(&Token::Identifier("MESH".to_string()))
             {
                 let process_num = mesh_process.get(&i).unwrap();
+                nml.append_token(Token::Whitespace(" ".to_string()));
                 nml.append_token(Token::Identifier("MPI_PROCESS".to_string()));
                 nml.append_token(Token::Equals);
                 nml.append_token(Token::Number(format!("{process_num}")));

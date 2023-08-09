@@ -1,4 +1,6 @@
-use clap::{crate_name, crate_version, value_parser, Arg, ArgMatches, Command};
+use clap::{
+    crate_name, crate_version, value_parser, Arg, ArgAction, ArgGroup, ArgMatches, Command,
+};
 use namelist::{
     tokenizer::{NmlParseError, Span, Token, TokenizerError},
     Namelist, ParsedNamelist,
@@ -30,45 +32,76 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .help("Number of MPI processes to use"),
         )
         .arg(
+            Arg::new("IN-PLACE")
+                .long("in-place")
+                .short('i')
+                .num_args(0)
+                .action(ArgAction::SetTrue)
+                .conflicts_with("OUTPUT-PATH")
+                .help("Modify the input file in place"),
+        )
+        .arg(
             Arg::new("OUTPUT-PATH")
-                .required(true)
                 .num_args(1)
                 .help("Path to the input file or '-' for stdin"),
         )
+        .group(
+            ArgGroup::new("output")
+                .args(["IN-PLACE", "OUTPUT-PATH"])
+                .multiple(false)
+                .required(true),
+        )
         .get_matches();
-    let file_path = matches
+    let input_path = matches
         .get_one::<String>("INPUT-PATH")
         .expect("No input path");
     let input_handle: Box<dyn Read> = {
-        if file_path == "-" {
+        if input_path == "-" {
+            if matches.get_flag("IN-PLACE") {
+                panic!("cannot use --in-place while using stdin as an input")
+            }
             Box::new(std::io::stdin())
         } else {
-            Box::new(std::fs::File::open(file_path)?)
+            Box::new(std::fs::File::open(input_path)?)
         }
     };
-    let output_handle: Box<dyn Write> = {
-        let file_path = matches
-            .get_one::<String>("OUTPUT-PATH")
-            .expect("No output path");
-        if file_path == "-" {
-            Box::new(std::io::stdout())
+    let output_path = matches.get_one::<String>("OUTPUT-PATH");
+    let output_handle: Option<Box<dyn Write>> = {
+        if let Some(file_path) = output_path {
+            if file_path == "-" {
+                Some(Box::new(std::io::stdout()))
+            } else {
+                Some(Box::new(std::fs::File::create(file_path)?))
+            }
+        } else if matches.get_flag("IN-PLACE") {
+            None
         } else {
-            Box::new(std::fs::File::create(file_path)?)
+            panic!("either an output path or in-place must be specified")
         }
     };
-    match run(&matches, input_handle, output_handle) {
+    let result = if let Some(output_handle) = output_handle {
+        run(&matches, input_handle, output_handle)
+    } else {
+        let mut output_file = tempfile::NamedTempFile::new().unwrap();
+        let result = run(&matches, input_handle, &mut output_file);
+        if result.is_ok() {
+            output_file.persist(input_path).unwrap();
+        }
+        result
+    };
+    match result {
         Ok(_) => Ok(()),
         Err(FdsParseError::Io(err)) => Err(Box::new(err)),
         Err(err) => {
             if let Some(span) = err.span() {
                 eprintln!(
                     "ERROR: {}:{}:{} {err}",
-                    file_path,
+                    input_path,
                     span.line + 1,
                     span.column + 1
                 );
             } else {
-                eprintln!("ERROR: {} {err}", file_path);
+                eprintln!("ERROR: {} {err}", input_path);
             }
             std::process::exit(1);
         }
@@ -243,12 +276,22 @@ impl FdsFile {
         for (i, nml) in nmls.iter_mut().enumerate() {
             if nml.tokens().get(1).map(|x| &x.token) == Some(&Token::Identifier("MESH".to_string()))
             {
+                // TODO: remove any previous process allocations
                 let process_num = mesh_process.get(&i).unwrap();
-                nml.append_token(Token::Whitespace(" ".to_string()));
-                nml.append_token(Token::Identifier("MPI_PROCESS".to_string()));
-                nml.append_token(Token::Equals);
-                nml.append_token(Token::Number(format!("{process_num}")));
-                nml.append_token(Token::Whitespace(" ".to_string()));
+                eprintln!("{nml}");
+                {
+                    // Remove any existing MPI_PROCESS params
+                    while nml.remove_parameter("MPI_PROCESS") {}
+                }
+                {
+                    // Append new MPI_PROCESS param
+                    nml.append_token(Token::Whitespace(" ".to_string()));
+                    nml.append_token(Token::Identifier("MPI_PROCESS".to_string()));
+                    nml.append_token(Token::Equals);
+                    nml.append_token(Token::Number(format!("{process_num}")));
+                    nml.append_token(Token::Whitespace(" ".to_string()));
+                }
+                eprintln!("\n{nml}");
             }
         }
         let mut new_meshes = vec![];

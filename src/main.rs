@@ -5,10 +5,12 @@ use namelist::{
     tokenizer::{NmlParseError, Span, Token, TokenizerError},
     Namelist, ParsedNamelist,
 };
+use serde::{Deserialize, Serialize};
 use std::{
     collections::HashMap,
     io::{Read, Write},
     num::ParseIntError,
+    path::PathBuf,
 };
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -39,6 +41,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .action(ArgAction::SetTrue)
                 .conflicts_with("OUTPUT-PATH")
                 .help("Modify the input file in place"),
+        )
+        .arg(
+            Arg::new("JSON")
+                .long("json")
+                .num_args(0)
+                .action(ArgAction::SetTrue)
+                .help("Log diagnostics to stderr using json"),
         )
         .arg(
             Arg::new("OUTPUT-PATH")
@@ -82,7 +91,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let result = if let Some(output_handle) = output_handle {
         run(&matches, input_handle, output_handle)
     } else {
-        let mut output_file = tempfile::NamedTempFile::new().unwrap();
+        let input_path = PathBuf::from(input_path);
+        let input_dir = input_path.parent().unwrap();
+        let mut output_file = tempfile::NamedTempFile::new_in(input_dir).unwrap();
         let result = run(&matches, input_handle, &mut output_file);
         if result.is_ok() {
             output_file.persist(input_path).unwrap();
@@ -116,7 +127,26 @@ fn run(
     let mut fds_file = FdsFile::from_reader(input_handle)?;
     // If the number of MPI processes has been nominated, reallocate meshes.
     if let Some(n_mpi) = matches.get_one::<u64>("N-PROCESSES").copied() {
-        fds_file.allocate_mpi_processes(n_mpi)?;
+        let outcome = fds_file.allocate_mpi_processes(n_mpi)?;
+        if matches.get_flag("JSON") {
+            let s = serde_json::to_string_pretty(&outcome).unwrap();
+            eprintln!("{s}");
+        } else {
+            let variation = {
+                let process_cells: Vec<usize> = outcome.processes.iter().map(|a| a.total).collect();
+                let min_bucket = *process_cells.iter().min().unwrap() as f64;
+                let max_bucket = *process_cells.iter().max().unwrap() as f64;
+                ((max_bucket - min_bucket) / 2.0) / ((max_bucket + min_bucket) / 2.0) * 100.0
+            };
+            eprintln!("MPI Mesh Allocation");
+            for (i, alloc) in outcome.processes.iter().enumerate() {
+                eprintln!(
+                    "  MPI_PROCESS {i}: TOTAL: {} {:?}",
+                    alloc.total, alloc.meshes
+                );
+            }
+            eprintln!("MPI Cell Count Variation: +/- {:.2}", variation);
+        }
     }
     fds_file
         .write_all(output_handle)
@@ -218,9 +248,13 @@ impl FdsFile {
         Ok(n)
     }
 
-    pub fn allocate_mpi_processes(&mut self, n_mpi: u64) -> Result<(), FdsParseError> {
+    pub fn allocate_mpi_processes(
+        &mut self,
+        n_mpi: u64,
+    ) -> Result<AllocationOutcome, FdsParseError> {
         let nmls = &mut self.nmls;
         let mut meshes = HashMap::new();
+        let mut outcome = AllocationOutcome::new();
         {
             // Count cells
             for (i, nml) in nmls.iter().enumerate() {
@@ -256,29 +290,16 @@ impl FdsFile {
                 mesh_process.insert(mesh_num, i);
             }
         }
-        eprintln!("MPI Mesh Allocation");
-        for (i, bucket) in buckets.iter().enumerate() {
-            let total_cells = bucket.iter().map(|(_, n)| n).sum::<usize>();
-            let cells: Vec<_> = bucket.iter().map(|(_, n)| n).collect();
-            eprintln!("  MPI_PROCESS {i}: TOTAL: {total_cells} {cells:?}");
+        for bucket in &buckets {
+            let cells: Vec<_> = bucket.iter().map(|(_, n)| *n).collect();
+            outcome.processes.push(MpiProcessAllocation::new(cells))
         }
-        let process_cells: Vec<usize> = buckets
-            .iter()
-            .map(|buckets| buckets.iter().map(|(_, n)| n).sum::<usize>())
-            .collect();
-        let min_bucket = *process_cells.iter().min().unwrap() as f64;
-        let max_bucket = *process_cells.iter().max().unwrap() as f64;
-        let variation =
-            ((max_bucket - min_bucket) / 2.0) / ((max_bucket + min_bucket) / 2.0) * 100.0;
-        eprintln!("MPI Cell Count Variation: +/- {:.2}", variation);
         let mut old_mesh_locations: Vec<usize> = meshes.iter().map(|(i, _)| *i).collect();
         old_mesh_locations.sort();
         for (i, nml) in nmls.iter_mut().enumerate() {
             if nml.tokens().get(1).map(|x| &x.token) == Some(&Token::Identifier("MESH".to_string()))
             {
-                // TODO: remove any previous process allocations
                 let process_num = mesh_process.get(&i).unwrap();
-                eprintln!("{nml}");
                 {
                     // Remove any existing MPI_PROCESS params
                     while nml.remove_parameter("MPI_PROCESS") {}
@@ -291,7 +312,6 @@ impl FdsFile {
                     nml.append_token(Token::Number(format!("{process_num}")));
                     nml.append_token(Token::Whitespace(" ".to_string()));
                 }
-                eprintln!("\n{nml}");
             }
         }
         let mut new_meshes = vec![];
@@ -304,7 +324,7 @@ impl FdsFile {
         for (old_location, (_, mut nml)) in old_mesh_locations.iter().zip(new_meshes.into_iter()) {
             std::mem::swap(&mut nml, nmls.get_mut(*old_location).unwrap());
         }
-        Ok(())
+        Ok(outcome)
     }
 }
 
@@ -330,4 +350,30 @@ fn count_mesh_cells(pnml: &ParsedNamelist) -> Result<usize, FdsParseError> {
         FdsParseError::Parse(pnml.span, "incorrect number of IJK parameters".into())
     })?;
     Ok(ijk[0] * ijk[1] * ijk[2])
+}
+
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+pub struct AllocationOutcome {
+    pub processes: Vec<MpiProcessAllocation>,
+}
+
+impl AllocationOutcome {
+    pub fn new() -> Self {
+        Self { processes: vec![] }
+    }
+}
+
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+pub struct MpiProcessAllocation {
+    pub total: usize,
+    pub meshes: Vec<usize>,
+}
+
+impl MpiProcessAllocation {
+    pub fn new(meshes: Vec<usize>) -> Self {
+        Self {
+            total: meshes.iter().sum(),
+            meshes,
+        }
+    }
 }

@@ -11,7 +11,7 @@ use std::{
 
 #[derive(Copy, Clone, Default, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct Transforms {
-    pub n_mpi: Option<u64>,
+    pub n_mpi: Option<u32>,
 }
 
 #[derive(Clone, Default, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
@@ -132,7 +132,7 @@ impl FdsFile {
 
     pub fn allocate_mpi_processes(
         &mut self,
-        n_mpi: u64,
+        n_mpi: u32,
     ) -> Result<AllocationOutcome, FdsParseError> {
         let nmls = &mut self.nmls;
         let mut meshes = HashMap::new();

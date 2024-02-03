@@ -23,7 +23,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             Arg::new("N-PROCESSES")
                 .long("n-mpi")
                 .required(false)
-                .value_parser(value_parser!(u64).range(1..))
+                .value_parser(value_parser!(u32).range(1..))
                 .num_args(1)
                 .help("Number of MPI processes to use"),
         )
@@ -119,7 +119,7 @@ fn run(
     output_handle: impl Write,
 ) -> Result<(), FdsParseError> {
     let transforms = Transforms {
-        n_mpi: matches.get_one::<u64>("N-PROCESSES").copied(),
+        n_mpi: matches.get_one::<u32>("N-PROCESSES").copied(),
     };
     let outcomes = fdspp::apply_transforms(&transforms, input_handle, output_handle)?;
     if let Some(mesh_allocation) = outcomes.mesh_allocation {

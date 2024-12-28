@@ -3,6 +3,7 @@ authors = ["Jake O'Shannessy <joshannessy@smokecloud.com>"]
 edition = "2021"
 name = "fdspp"
 version = "0.3.2"
+license = "GPL-2.0-or-later"
 
 [dependencies]
 clap = { version = "4", features = ["cargo"] }

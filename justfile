@@ -26,3 +26,12 @@ clean-dist:
 # Clean everything
 clean: clean-dist
     cargo clean
+
+wasm:
+    cargo build -p fdspp-wasm --target wasm32-unknown-unknown --profile wasm-release
+    cp target/wasm32-unknown-unknown/wasm-release/fdspp_wasm.wasm wasm/pkg/fdspp.wasm
+
+# Check the WASM package gives the same allocations as the command
+test-wasm: wasm
+    cargo build --release
+    node wasm/test.mjs

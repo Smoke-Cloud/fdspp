@@ -119,15 +119,20 @@ impl FdsFile {
 
     /// Count the number of cells in the model.
     pub fn n_cells(&self) -> Result<usize, FdsParseError> {
-        let mut n = 0;
+        Ok(self.mesh_cells()?.iter().sum())
+    }
+
+    /// The number of cells in each mesh, in the order they appear in the input.
+    pub fn mesh_cells(&self) -> Result<Vec<usize>, FdsParseError> {
+        let mut cells = Vec::new();
         for nml in self.nmls.iter() {
             if nml.tokens().get(1).map(|x| &x.token) == Some(&Token::Identifier("MESH".to_string()))
             {
                 let pnml = ParsedNamelist::from_namelist(nml).map_err(FdsParseError::NmlParse)?;
-                n += count_mesh_cells(&pnml)?;
+                cells.push(count_mesh_cells(&pnml)?);
             }
         }
-        Ok(n)
+        Ok(cells)
     }
 
     pub fn allocate_mpi_processes(
@@ -135,7 +140,6 @@ impl FdsFile {
         n_mpi: u32,
     ) -> Result<AllocationOutcome, FdsParseError> {
         let nmls = &mut self.nmls;
-        // (index of the mesh's namelist, its cells), in file order.
         let mut meshes = Vec::new();
         let mut outcome = AllocationOutcome::new();
         {
@@ -151,32 +155,14 @@ impl FdsFile {
                 }
             }
         }
-        // Largest first. The sort is stable, so meshes with the same number of
-        // cells stay in file order, and the allocation is the same every time.
-        meshes.sort_by_key(|&(_, n_cells)| std::cmp::Reverse(n_cells));
-        let mut buckets: Vec<Vec<(usize, usize)>> = vec![vec![]; n_mpi as usize];
-        for mesh in &meshes {
-            // get the minimum bucket
-            let min_bucket = buckets
-                .iter_mut()
-                .min_by(|a, b| {
-                    let n_a = a.iter().map(|(_, n)| n).sum::<usize>();
-                    let n_b = b.iter().map(|(_, n)| n).sum::<usize>();
-                    n_a.cmp(&n_b)
-                })
-                .unwrap();
-            min_bucket.push(*mesh);
-        }
-        let mut mesh_process = BTreeMap::new();
-        for (i, bucket) in buckets.iter().enumerate() {
-            for (mesh_num, _) in bucket.iter() {
-                mesh_process.insert(mesh_num, i);
-            }
-        }
-        for bucket in &buckets {
-            let cells: Vec<_> = bucket.iter().map(|(_, n)| *n).collect();
-            outcome.processes.push(MpiProcessAllocation::new(cells))
-        }
+        let cells: Vec<usize> = meshes.iter().map(|&(_, n_cells)| n_cells).collect();
+        let allocation = allocate_cells(&cells, n_mpi);
+        let mesh_process: BTreeMap<usize, usize> = meshes
+            .iter()
+            .zip(&allocation.mesh_process)
+            .map(|(&(i, _), &process)| (i, process))
+            .collect();
+        outcome.processes = allocation.outcome.processes;
         let mut old_mesh_locations: Vec<usize> = meshes.iter().map(|(i, _)| *i).collect();
         old_mesh_locations.sort();
         for (i, nml) in nmls.iter_mut().enumerate() {
@@ -208,6 +194,43 @@ impl FdsFile {
             std::mem::swap(&mut nml, nmls.get_mut(*old_location).unwrap());
         }
         Ok(outcome)
+    }
+}
+
+/// How meshes are allocated to MPI processes by [`allocate_cells`].
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+pub struct CellAllocation {
+    pub outcome: AllocationOutcome,
+    /// The process each mesh is allocated to, in the order of the cells given.
+    pub mesh_process: Vec<usize>,
+}
+
+/// Given a list of meshes with a given number of cells and a number of MPI processes
+/// return a the same list with the mesh number of each.
+pub fn allocate_cells(cells: &[usize], n_mpi: u32) -> CellAllocation {
+    let n_mpi = n_mpi as usize;
+    let mut order: Vec<usize> = (0..cells.len()).collect();
+    order.sort_by_key(|&mesh| std::cmp::Reverse(cells[mesh]));
+    let mut processes: Vec<Vec<usize>> = vec![vec![]; n_mpi];
+    let mut totals = vec![0usize; n_mpi];
+    let mut mesh_process = vec![0; cells.len()];
+    for mesh in order {
+        let process = (0..n_mpi)
+            .min_by_key(|&process| totals[process])
+            .expect("at least one MPI process");
+        processes[process].push(mesh);
+        totals[process] += cells[mesh];
+        mesh_process[mesh] = process;
+    }
+    let outcome = AllocationOutcome {
+        processes: processes
+            .iter()
+            .map(|meshes| MpiProcessAllocation::new(meshes.iter().map(|&m| cells[m]).collect()))
+            .collect(),
+    };
+    CellAllocation {
+        outcome,
+        mesh_process,
     }
 }
 

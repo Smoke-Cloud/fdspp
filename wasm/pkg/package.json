@@ -14,5 +14,8 @@
     "fdspp.js",
     "fdspp.d.ts",
     "fdspp.wasm"
-  ]
+  ],
+  "publishConfig": {
+    "access": "public"
+  }
 }

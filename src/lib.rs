@@ -4,7 +4,7 @@ use namelist::{
 };
 use serde::{Deserialize, Serialize};
 use std::{
-    collections::HashMap,
+    collections::BTreeMap,
     io::{Read, Write},
     num::ParseIntError,
 };
@@ -135,7 +135,8 @@ impl FdsFile {
         n_mpi: u32,
     ) -> Result<AllocationOutcome, FdsParseError> {
         let nmls = &mut self.nmls;
-        let mut meshes = HashMap::new();
+        // (index of the mesh's namelist, its cells), in file order.
+        let mut meshes = Vec::new();
         let mut outcome = AllocationOutcome::new();
         {
             // Count cells
@@ -146,13 +147,13 @@ impl FdsFile {
                     let pnml =
                         ParsedNamelist::from_namelist(nml).map_err(FdsParseError::NmlParse)?;
                     let n_cells = count_mesh_cells(&pnml)?;
-                    meshes.insert(i, n_cells);
+                    meshes.push((i, n_cells));
                 }
             }
         }
-        let mut meshes: Vec<_> = meshes.into_iter().collect();
-        meshes.sort_by(|a, b| a.1.cmp(&b.1));
-        meshes.reverse();
+        // Largest first. The sort is stable, so meshes with the same number of
+        // cells stay in file order, and the allocation is the same every time.
+        meshes.sort_by_key(|&(_, n_cells)| std::cmp::Reverse(n_cells));
         let mut buckets: Vec<Vec<(usize, usize)>> = vec![vec![]; n_mpi as usize];
         for mesh in &meshes {
             // get the minimum bucket
@@ -166,7 +167,7 @@ impl FdsFile {
                 .unwrap();
             min_bucket.push(*mesh);
         }
-        let mut mesh_process = HashMap::new();
+        let mut mesh_process = BTreeMap::new();
         for (i, bucket) in buckets.iter().enumerate() {
             for (mesh_num, _) in bucket.iter() {
                 mesh_process.insert(mesh_num, i);
@@ -203,7 +204,7 @@ impl FdsFile {
             new_meshes.push((mesh_process.get(&old_location).unwrap(), mesh));
         }
         new_meshes.sort_by(|a, b| a.0.cmp(b.0));
-        for (old_location, (_, mut nml)) in old_mesh_locations.iter().zip(new_meshes.into_iter()) {
+        for (old_location, (_, mut nml)) in old_mesh_locations.iter().zip(new_meshes) {
             std::mem::swap(&mut nml, nmls.get_mut(*old_location).unwrap());
         }
         Ok(outcome)
